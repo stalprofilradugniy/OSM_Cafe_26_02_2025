@@ -62,6 +62,24 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
+        .pulse {
+            background: #007bff;
+            border-radius: 50%;
+            height: 15px;
+            width: 15px;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0,123,255,0.5); }
+            70% { box-shadow: 0 0 0 15px rgba(0,123,255,0); }
+            100% { box-shadow: 0 0 0 0 rgba(0,123,255,0); }
+        }
+
         @media (min-width: 768px) {
             #map {
                 height: 60vh;
@@ -89,7 +107,6 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // Оригинальный JavaScript код из предыдущего примера с изменениями:
         let map;
         let userMarker;
 
@@ -111,7 +128,6 @@
                     attribution: '© OpenStreetMap'
                 }).addTo(map);
                 
-                // Мобильный-friendly управление
                 map.touchZoom.enable();
                 map.doubleClickZoom.disable();
             }
@@ -128,10 +144,67 @@
             findNearbyCafes(lat, lon);
         }
 
-        // Остальные функции (findNearbyCafes, processResults и т.д.) остаются без изменений
-        // ... (вставить остальной JavaScript код из предыдущего примера)
+        async function findNearbyCafes(lat, lon) {
+            const radius = 1000;
+            const overpassUrl = 'https://overpass-api.de/api/interpreter';
+            
+            const query = `
+                [out:json];
+                (
+                    node["amenity"~"cafe|restaurant"](around:${radius},${lat},${lon});
+                    way["amenity"~"cafe|restaurant"](around:${radius},${lat},${lon});
+                );
+                out center;
+                `;
 
-        // Адаптированная функция отображения результатов
+            try {
+                const response = await fetch(overpassUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'text/plain'
+                    },
+                    body: query
+                });
+                
+                const data = await response.json();
+                processResults(data.elements, lat, lon);
+            } catch (error) {
+                console.error('Ошибка:', error);
+                alert('Не удалось получить данные');
+            }
+        }
+
+        function processResults(elements, userLat, userLon) {
+            const places = elements.map(element => {
+                const lat = element.lat || element.center.lat;
+                const lon = element.lon || element.center.lon;
+                return {
+                    name: element.tags.name || 'Название не указано',
+                    lat: lat,
+                    lon: lon,
+                    distance: calculateDistance(userLat, userLon, lat, lon)
+                };
+            });
+
+            places.sort((a, b) => a.distance - b.distance);
+            const top3 = places.slice(0, 3);
+            
+            displayResults(top3);
+            addMarkersToMap(top3);
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+            return R * c;
+        }
+
         function displayResults(places) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
@@ -148,6 +221,28 @@
                 };
                 resultsDiv.appendChild(div);
             });
+        }
+
+        function addMarkersToMap(places) {
+            places.forEach(place => {
+                L.marker([place.lat, place.lon])
+                    .addTo(map)
+                    .bindPopup(place.name);
+            });
+        }
+
+        function showError(error) {
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    alert("Разрешите доступ к геолокации");
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    alert("Информация о местоположении недоступна");
+                    break;
+                case error.TIMEOUT:
+                    alert("Время запроса геолокации истекло");
+                    break;
+            }
         }
     </script>
 </body>

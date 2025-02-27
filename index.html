@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ближайшие кафе</title>
+    <title>Поиск кафе</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
+        /* Обновлённые стили */
         * {
             box-sizing: border-box;
             margin: 0;
@@ -14,11 +15,11 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
+            background: #f5f5f5;
         }
 
-        #map { 
-            height: 50vh; 
+        #map {
+            height: 55vh;
             width: 100%;
             position: fixed;
             bottom: 0;
@@ -26,122 +27,130 @@
         }
 
         .controls {
-            padding: 15px;
+            padding: 1rem;
             background: white;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             position: relative;
             z-index: 2;
         }
 
         button {
             width: 100%;
-            padding: 15px;
-            font-size: 18px;
-            background: #007bff;
+            padding: 1rem;
+            font-size: 1.1rem;
+            background: #4CAF50;
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            touch-action: manipulation;
+            transition: background 0.3s;
         }
 
-        button:active {
-            background: #0056b3;
+        button:disabled {
+            background: #81C784;
+            cursor: wait;
         }
 
         #results {
-            padding: 15px;
-            padding-bottom: calc(50vh + 15px);
+            padding: 1rem;
+            padding-bottom: calc(55vh + 1rem);
         }
 
         .result-item {
-            padding: 15px;
-            margin-bottom: 10px;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
-        .pulse {
-            background: #007bff;
-            border-radius: 50%;
-            height: 15px;
-            width: 15px;
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            animation: pulse 1.5s infinite;
+        .loader {
+            display: none;
+            text-align: center;
+            padding: 1rem;
+            color: #666;
         }
 
-        @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(0,123,255,0.5); }
-            70% { box-shadow: 0 0 0 15px rgba(0,123,255,0); }
-            100% { box-shadow: 0 0 0 0 rgba(0,123,255,0); }
-        }
-
-        @media (min-width: 768px) {
-            #map {
-                height: 60vh;
-            }
-            
-            button {
-                max-width: 300px;
-                margin: 0 auto;
-                display: block;
-            }
-            
-            #results {
-                max-width: 600px;
-                margin: 0 auto;
-            }
+        .error {
+            color: #D32F2F;
+            padding: 1rem;
+            background: #FFEBEE;
+            border-radius: 8px;
+            margin: 1rem;
+            display: none;
         }
     </style>
 </head>
 <body>
     <div class="controls">
-        <button onclick="getLocation()">📍 Найти ближайшие кафе</button>
+        <button onclick="getLocation()" id="searchBtn">📍 Найти кафе рядом</button>
+        <div class="loader" id="loader">Поиск ближайших заведений...</div>
+        <div class="error" id="errorMsg"></div>
     </div>
     <div id="results"></div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        let map;
-        let userMarker;
+        let map, userMarker;
+        const searchBtn = document.getElementById('searchBtn');
+        const loader = document.getElementById('loader');
+        const errorMsg = document.getElementById('errorMsg');
 
-        function getLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(showPosition, showError);
-            } else {
-                alert("Геолокация не поддерживается вашим браузером");
+        async function getLocation() {
+            try {
+                searchBtn.disabled = true;
+                loader.style.display = 'block';
+                errorMsg.style.display = 'none';
+
+                const position = await new Promise((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                        enableHighAccuracy: true,
+                        timeout: 5000,
+                        maximumAge: 0
+                    });
+                });
+
+                await showPosition(position);
+            } catch (error) {
+                handleGeolocationError(error);
+            } finally {
+                searchBtn.disabled = false;
+                loader.style.display = 'none';
             }
         }
 
-        function showPosition(position) {
+        async function showPosition(position) {
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
-            
+
             if (!map) {
-                map = L.map('map', { zoomControl: false }).setView([lat, lon], 16);
+                map = L.map('map', {
+                    zoomControl: false,
+                    doubleClickZoom: false,
+                    boxZoom: false
+                }).setView([lat, lon], 16);
+
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '© OpenStreetMap'
                 }).addTo(map);
-                
-                map.touchZoom.enable();
-                map.doubleClickZoom.disable();
             }
 
             if (userMarker) map.removeLayer(userMarker);
             userMarker = L.marker([lat, lon], {
                 icon: L.divIcon({
                     className: 'user-marker',
-                    html: '<div class="pulse"></div>',
+                    html: '<div style="background: #4CAF50; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>',
                     iconSize: [30, 30]
                 })
             }).addTo(map);
 
-            findNearbyCafes(lat, lon);
+            try {
+                const results = await findNearbyCafes(lat, lon);
+                processResults(results, lat, lon);
+            } catch (error) {
+                showError('Ошибка при поиске заведений: ' + error.message);
+            }
         }
 
         async function findNearbyCafes(lat, lon) {
@@ -149,75 +158,78 @@
             const overpassUrl = 'https://overpass-api.de/api/interpreter';
             
             const query = `
-                [out:json];
+                [out:json][timeout:25];
                 (
                     node["amenity"~"cafe|restaurant"](around:${radius},${lat},${lon});
                     way["amenity"~"cafe|restaurant"](around:${radius},${lat},${lon});
+                    relation["amenity"~"cafe|restaurant"](around:${radius},${lat},${lon});
                 );
                 out center;
                 `;
 
-            try {
-                const response = await fetch(overpassUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'text/plain'
-                    },
-                    body: query
-                });
-                
-                const data = await response.json();
-                processResults(data.elements, lat, lon);
-            } catch (error) {
-                console.error('Ошибка:', error);
-                alert('Не удалось получить данные');
-            }
-        }
-
-        function processResults(elements, userLat, userLon) {
-            const places = elements.map(element => {
-                const lat = element.lat || element.center.lat;
-                const lon = element.lon || element.center.lon;
-                return {
-                    name: element.tags.name || 'Название не указано',
-                    lat: lat,
-                    lon: lon,
-                    distance: calculateDistance(userLat, userLon, lat, lon)
-                };
+            const response = await fetch(overpassUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'text/plain'
+                },
+                body: query
             });
 
-            places.sort((a, b) => a.distance - b.distance);
-            const top3 = places.slice(0, 3);
-            
-            displayResults(top3);
-            addMarkersToMap(top3);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        }
+
+        function processResults(data, userLat, userLon) {
+            if (!data.elements.length) {
+                showError('Ничего не найдено в радиусе 1 км');
+                return;
+            }
+
+            const places = data.elements
+                .map(element => ({
+                    name: element.tags?.name || 'Без названия',
+                    lat: element.lat || element.center?.lat,
+                    lon: element.lon || element.center?.lon,
+                    distance: calculateDistance(userLat, userLon, 
+                        element.lat || element.center?.lat, 
+                        element.lon || element.center?.lon)
+                }))
+                .filter(p => p.lat && p.lon)
+                .sort((a, b) => a.distance - b.distance)
+                .slice(0, 3);
+
+            displayResults(places);
+            addMarkersToMap(places);
         }
 
         function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; 
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-                Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-            return R * c;
+            const R = 6371e3;
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c / 1000; // расстояние в километрах
         }
 
         function displayResults(places) {
             const resultsDiv = document.getElementById('results');
             resultsDiv.innerHTML = '';
-            
+
             places.forEach(place => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
                 div.innerHTML = `
-                    <div style="font-size: 16px; font-weight: 500;">${place.name}</div>
-                    <div style="color: #666; margin-top: 5px;">${place.distance.toFixed(2)} км</div>
+                    <div style="font-weight: 500; margin-bottom: 0.3rem;">${place.name}</div>
+                    <div style="font-size: 0.9rem; color: #666;">${place.distance.toFixed(2)} км</div>
                 `;
                 div.onclick = () => {
-                    map.setView([place.lat, place.lon], 18);
+                    map.flyTo([place.lat, place.lon], 17);
                 };
                 resultsDiv.appendChild(div);
             });
@@ -225,24 +237,37 @@
 
         function addMarkersToMap(places) {
             places.forEach(place => {
-                L.marker([place.lat, place.lon])
-                    .addTo(map)
-                    .bindPopup(place.name);
+                L.marker([place.lat, place.lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+                        iconSize: [25, 41]
+                    })
+                }).addTo(map)
+                .bindPopup(place.name);
             });
         }
 
-        function showError(error) {
+        function handleGeolocationError(error) {
+            let message = '';
             switch(error.code) {
                 case error.PERMISSION_DENIED:
-                    alert("Разрешите доступ к геолокации");
+                    message = "Разрешите доступ к геолокации в настройках браузера";
                     break;
                 case error.POSITION_UNAVAILABLE:
-                    alert("Информация о местоположении недоступна");
+                    message = "Информация о местоположении недоступна";
                     break;
                 case error.TIMEOUT:
-                    alert("Время запроса геолокации истекло");
+                    message = "Время ожидания геолокации истекло";
                     break;
+                default:
+                    message = "Произошла неизвестная ошибка";
             }
+            showError(message);
+        }
+
+        function showError(message) {
+            errorMsg.textContent = message;
+            errorMsg.style.display = 'block';
         }
     </script>
 </body>

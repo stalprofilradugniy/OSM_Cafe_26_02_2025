@@ -4,76 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ближайшие Кафе и Рестораны</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-        .container {
-            width: 90%;
-            max-width: 600px;
-            text-align: center;
-        }
-        .results {
-            margin-top: 20px;
-        }
-        .result {
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-        }
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100%; }
+        .controls { position: absolute; top: 10px; left: 10px; z-index: 1000; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Найти Ближайшие Кафе и Рестораны</h1>
-        <button id="findRestaurants">Найти</button>
-        <div class="results" id="results"></div>
+    <div id="map"></div>
+    <div class="controls">
+        <button id="find-restaurants">Найти ближайшие рестораны</button>
     </div>
-
-    <script>
-        document.getElementById('findRestaurants').addEventListener('click', function() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    findNearbyRestaurants(lat, lon);
-                }, function(error) {
-                    alert('Ошибка при получении геолокации: ' + error.message);
-                });
-            } else {
-                alert('Ваш браузер не поддерживает геолокацию.');
-            }
-        });
-
-        function findNearbyRestaurants(lat, lon) {
-            const url = `https://nominatim.openstreetmap.org/search?q=cafe+or+restaurant&format=json&lat=${lat}&lon=${lon}&radius=1000&limit=3`;
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    const resultsDiv = document.getElementById('results');
-                    resultsDiv.innerHTML = '';
-                    data.forEach(item => {
-                        const resultDiv = document.createElement('div');
-                        resultDiv.className = 'result';
-                        resultDiv.innerHTML = `
-                            <h2>${item.display_name}</h2>
-                            <p>Расстояние: ${item.distance} м</p>
-                        `;
-                        resultsDiv.appendChild(resultDiv);
-                    });
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-        }
-    </script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
